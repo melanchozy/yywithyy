@@ -2,7 +2,9 @@ package com.yy.blog.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.yy.blog.dao.mapper.UserMapper;
+import com.yy.blog.dao.mapper.YyMapper;
 import com.yy.blog.dao.pojo.User;
+import com.yy.blog.dao.pojo.Yy;
 import com.yy.blog.service.TokenService;
 import com.yy.blog.service.UserService;
 import com.yy.blog.vo.Result;
@@ -11,11 +13,16 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 public class UserServiceImpl implements UserService {
 
     @Autowired
     private UserMapper UserMapper;
+
+    @Autowired
+    private YyMapper yyMapper;
 
     @Autowired
     private TokenService tokenService;
@@ -68,5 +75,13 @@ public class UserServiceImpl implements UserService {
     public Long findUserIdByToken(String token) {
         Object id=tokenService.checkToken(token);
         return Long.valueOf(String.valueOf(id));
+    }
+
+    @Override
+    public List<Yy> findYy() {
+        LambdaQueryWrapper<Yy> queryWrapper=new LambdaQueryWrapper<>();
+//        queryWrapper.last("limit 2");
+        List<Yy> yys = yyMapper.selectList(queryWrapper);
+        return yys;
     }
 }
