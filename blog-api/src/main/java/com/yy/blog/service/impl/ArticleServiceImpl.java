@@ -1,6 +1,8 @@
 package com.yy.blog.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yy.blog.dao.mapper.ArticleBodyMapper;
 import com.yy.blog.dao.mapper.ArticleMapper;
@@ -154,6 +156,15 @@ public class ArticleServiceImpl implements ArticleService {
         articleBodyVo.setContent(saveParams.getContent());
         redisTemplate.opsForValue().set(String.valueOf(userId),articleBodyVo);
         return Result.success(articleBodyVo);
+    }
+
+    @Override
+    public int updateCateByCateId(Long cateId) {
+        LambdaUpdateWrapper<Article> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(Article::getCategoryId,cateId)
+                .set(Article::getCategoryId,10086);
+        int update = articleMapper.update(null,updateWrapper);
+        return update;
     }
 
     /**

@@ -1,9 +1,12 @@
 package com.yy.blog.service;
 
+import com.yy.blog.dao.pojo.Article;
 import com.yy.blog.vo.Result;
 import com.yy.blog.vo.params.ArticleParams;
 import com.yy.blog.vo.params.PageParams;
 import com.yy.blog.vo.params.SaveParams;
+
+import java.util.List;
 
 public interface ArticleService {
     /**
@@ -26,6 +29,8 @@ public interface ArticleService {
     Result publishArticle(ArticleParams articleParam);
 
     Result saveArticle(SaveParams saveParams);
+
+    int updateCateByCateId(Long cateId);
 
     Result newArticle(String token);
 }
