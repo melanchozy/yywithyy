@@ -1,11 +1,14 @@
 package com.yy.blog.controller;
 
 import com.yy.blog.dao.mapper.YyMapper;
+import com.yy.blog.dao.pojo.Tag;
 import com.yy.blog.dao.pojo.Yy;
 import com.yy.blog.service.ArticleService;
 import com.yy.blog.service.CategoryService;
+import com.yy.blog.service.TagsService;
 import com.yy.blog.vo.Result;
 import com.yy.blog.vo.params.CategoryParams;
+import com.yy.blog.vo.params.TagParams;
 import com.yy.blog.vo.params.YyParams;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +31,8 @@ public class BackendController {
     private RedisTemplate redisTemplate;
     @Autowired
     private ArticleService articleService;
+    @Autowired
+    private TagsService tagsService;
 
     @PostMapping("yy")
     public Result updateYy(@RequestBody YyParams yyParams){
@@ -68,4 +73,39 @@ public class BackendController {
         return categoryService.upCate(categoryParams);
     }
 
+    // 新建tag
+    @PostMapping("newtag")
+    public Result newTag(@RequestParam String name){
+        if(isBlank(name)){
+            return Result.fail(-998,"wrong name");
+        }
+        return tagsService.newTag(name);
+    }
+    // 删除tag
+    @PostMapping("deltag")
+    @Transactional
+    public Result delTag(@RequestParam String tagId){
+        if(isBlank(tagId)){
+            return Result.fail(-998,"wrong tag id");
+        }
+        long id = Long.parseLong(tagId);
+        if(id==10086){
+            return Result.fail(-998,"can not delete this tag");
+        }
+        //更改该标签下的所有文章该标签为未知标签
+        tagsService.updateTagByTagId(id);
+        //删除该标签
+        return tagsService.delTag(id);
+    }
+    // 修改tag
+    @PostMapping("uptag")
+    public Result updateTag(@RequestBody TagParams tagParams){
+        if(isBlank(tagParams.getName())){
+            return Result.fail(-998,"wrong tag name");
+        }
+        if(isBlank(tagParams.getId())){
+            return Result.fail(-998,"wrong tag id");
+        }
+        return tagsService.upTag(tagParams);
+    }
 }
