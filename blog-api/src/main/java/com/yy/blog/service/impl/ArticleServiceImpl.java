@@ -15,6 +15,7 @@ import com.yy.blog.service.TagsService;
 import com.yy.blog.service.UserService;
 import com.yy.blog.vo.*;
 import com.yy.blog.vo.params.ArticleParams;
+import com.yy.blog.vo.params.BackArticleParams;
 import com.yy.blog.vo.params.PageParams;
 import com.yy.blog.vo.params.SaveParams;
 import org.joda.time.DateTime;
@@ -54,14 +55,17 @@ public class ArticleServiceImpl implements ArticleService {
     public Result listArticle(PageParams pageParams) {
         Page<Article> page = new Page<>(pageParams.getPage(),pageParams.getPageSize());
         LambdaQueryWrapper<Article> queryWrapper=new LambdaQueryWrapper<>();
-        // 默认按创建时间倒序排序
-        queryWrapper.orderByDesc(Article::getCreateDate);
+        // 默认按创建时间倒序排序，逻辑删除了排除
+        queryWrapper.ne(Article::getIsDelete,1)
+                .orderByDesc(Article::getCreateDate)
+                .orderByDesc(Article::getWeight);
         Page<Article> articlePage = articleMapper.selectPage(page, queryWrapper);
         List<Article> records=articlePage.getRecords();
+        if(records.isEmpty())
+            return Result.fail(-998,"article not found");
         // 转成VO
         List<ArticleVo> articleVoList=copyList(records,true,true);
         return Result.success(articleVoList);
-
     }
 
     @Override
@@ -69,7 +73,13 @@ public class ArticleServiceImpl implements ArticleService {
         /*
         * 需要先查artcle表，再查artcle_body表
         * */
-        Article article=articleMapper.selectById(articleId);
+        LambdaQueryWrapper<Article> queryWrapper=new LambdaQueryWrapper<>();
+        queryWrapper.ne(Article::getIsDelete,1)
+                .eq(Article::getId,articleId);
+        Article article=articleMapper.selectOne(queryWrapper);
+        if(article==null){
+            return Result.fail(-998,"article not found");
+        }
         ArticleVo articleVo=copy(article);
         return Result.success(articleVo);
     }
@@ -180,6 +190,72 @@ public class ArticleServiceImpl implements ArticleService {
             return Result.success(null);
         }
         return Result.success(obj);
+    }
+
+    @Override
+    public Result logicdel(Long articleId) {
+        LambdaUpdateWrapper<Article> updateWrapper=new LambdaUpdateWrapper<>();
+        updateWrapper.eq(Article::getId,articleId)
+                .set(Article::getIsDelete,1);
+        int update = articleMapper.update(null, updateWrapper);
+        if(update==0)
+            return Result.fail(-998,"Failed to Ldelete article");
+        return Result.success("Successfully Ldelete article");
+    }
+
+    @Override
+    public Result reArt(Long articleId) {
+        LambdaUpdateWrapper<Article> updateWrapper=new LambdaUpdateWrapper<>();
+        updateWrapper.eq(Article::getId,articleId)
+                .set(Article::getIsDelete,0);
+        int update = articleMapper.update(null, updateWrapper);
+        if(update==0)
+            return Result.fail(-998,"Failed to recover article");
+        return Result.success("Successfully recover article");
+    }
+    // 彻底删除文章
+    @Override
+    @Transactional
+    public Result delArt(Long articleId) {
+        LambdaQueryWrapper<ArticleTag> queryWrapper=new LambdaQueryWrapper<>();
+        queryWrapper.eq(ArticleTag::getArticleId,articleId);
+        articleTagMapper.delete(queryWrapper);
+        LambdaQueryWrapper<ArticleBody> queryWrapper2=new LambdaQueryWrapper<>();
+        queryWrapper2.eq(ArticleBody::getArticleId,articleId);
+        articleBodyMapper.delete(queryWrapper2);
+        int i = articleMapper.deleteById(articleId);
+        if(i==0)
+            return Result.fail(-998,"Failed to delete Article");
+        return Result.success("Successfully delete Article");
+    }
+
+    @Override
+    public Result allArticle(PageParams pageParams) {
+        Page<Article> page = new Page<>(pageParams.getPage(),pageParams.getPageSize());
+        LambdaQueryWrapper<Article> queryWrapper=new LambdaQueryWrapper<>();
+        queryWrapper.orderByDesc(Article::getCreateDate)
+                .orderByDesc(Article::getWeight);
+        Page<Article> articlePage = articleMapper.selectPage(page, queryWrapper);
+        List<Article> articles=articlePage.getRecords();
+        if(articles.isEmpty())
+            return Result.fail(-998,"article not found");
+        return Result.success(articles);
+    }
+
+    @Override
+    public Result updateArticle(BackArticleParams backArticleParams) {
+        LambdaUpdateWrapper<Article> updateWrapper=new LambdaUpdateWrapper<>();
+        updateWrapper.eq(Article::getId,backArticleParams.getId())
+                .set(Article::getTitle,backArticleParams.getTitle())
+                .set(Article::getSummary,backArticleParams.getSummary())
+                .set(Article::getCreateDate,backArticleParams.getCreateDate())
+                .set(Article::getCategoryId,backArticleParams.getCategoryId())
+                .set(Article::getWeight,backArticleParams.getWeight());
+        int update = articleMapper.update(null, updateWrapper);
+        if(update==0){
+            return Result.fail(-998,"Failed to update article");
+        }
+        return Result.success("Successfully update article");
     }
 
     public ArticleVo copy(Article article, boolean isAuthor, boolean isTags){

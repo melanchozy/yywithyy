@@ -12,7 +12,7 @@ public class ArticleVo {
 
     private String summary;
 
-    private Integer weight;
+    private Long weight;
     /**
      * 创建时间
      */

@@ -7,9 +7,7 @@ import com.yy.blog.service.ArticleService;
 import com.yy.blog.service.CategoryService;
 import com.yy.blog.service.TagsService;
 import com.yy.blog.vo.Result;
-import com.yy.blog.vo.params.CategoryParams;
-import com.yy.blog.vo.params.TagParams;
-import com.yy.blog.vo.params.YyParams;
+import com.yy.blog.vo.params.*;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -107,5 +105,43 @@ public class BackendController {
             return Result.fail(-998,"wrong tag id");
         }
         return tagsService.upTag(tagParams);
+    }
+
+    // 逻辑删除文章
+    @PostMapping("ldelart")
+    public Result logicdelArticle(@RequestParam String articleId){
+        if(isBlank(articleId)){
+            return Result.fail(-998,"wrong article id");
+        }
+        long id = Long.parseLong(articleId);
+        return articleService.logicdel(id);
+    }
+    // 恢复被逻辑删除的文章
+    @PostMapping("reart")
+    public Result reArticle(@RequestParam String articleId){
+        if(isBlank(articleId)){
+            return Result.fail(-998,"wrong article id");
+        }
+        long id = Long.parseLong(articleId);
+        return articleService.reArt(id);
+    }
+    // 彻底删除文章
+    @PostMapping("delart")
+    public Result delArticle(@RequestParam String articleId){
+        if(isBlank(articleId)){
+            return Result.fail(-998,"wrong article id");
+        }
+        long id = Long.parseLong(articleId);
+        return articleService.delArt(id);
+    }
+    // 分页查询文章
+    @PostMapping("articles")
+    public Result articles(@RequestBody PageParams pageParams){
+        return articleService.allArticle(pageParams);
+    }
+    // 修改文章信息（文章标题、简述、时间、分类、置顶）
+    @PostMapping("upart")
+    public Result upArticle(@RequestBody BackArticleParams backArticleParams){
+        return articleService.updateArticle(backArticleParams);
     }
 }

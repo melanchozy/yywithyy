@@ -25,4 +25,8 @@ public class Article {
      * 创建时间
      */
     private Long createDate;
+    // 是否逻辑删除，是1，不是0
+    private Integer isDelete;
+    // 置顶权重
+    private Long weight;
 }
