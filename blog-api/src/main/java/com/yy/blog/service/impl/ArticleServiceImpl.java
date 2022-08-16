@@ -1,9 +1,11 @@
 package com.yy.blog.service.impl;
 
+import com.alibaba.fastjson.JSON;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.yy.blog.dao.eso.ArticleEso;
 import com.yy.blog.dao.mapper.ArticleBodyMapper;
 import com.yy.blog.dao.mapper.ArticleMapper;
 import com.yy.blog.dao.mapper.ArticleTagMapper;
@@ -13,12 +15,14 @@ import com.yy.blog.service.ArticleService;
 import com.yy.blog.service.CategoryService;
 import com.yy.blog.service.TagsService;
 import com.yy.blog.service.UserService;
+import com.yy.blog.utils.Mq;
 import com.yy.blog.vo.*;
 import com.yy.blog.vo.params.ArticleParams;
 import com.yy.blog.vo.params.BackArticleParams;
 import com.yy.blog.vo.params.PageParams;
 import com.yy.blog.vo.params.SaveParams;
 import org.joda.time.DateTime;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -50,6 +54,8 @@ public class ArticleServiceImpl implements ArticleService {
     private CategoryService categoryService;
     @Autowired
     private RedisTemplate redisTemplate;
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
 
     @Override
     public Result listArticle(PageParams pageParams) {
@@ -113,15 +119,19 @@ public class ArticleServiceImpl implements ArticleService {
         for(TagVo tag:tags){
             ArticleTag articleTag = new ArticleTag();
             articleTag.setArticleId(articleId);
-            if(tag.getId()==null){
+            LambdaQueryWrapper<Tag> queryWrapper=new LambdaQueryWrapper<>();
+            queryWrapper.eq(Tag::getTagName,tag.getTagName());
+            Tag tagtag = tagMapper.selectOne(queryWrapper);
+            if(tagtag==null){
                 long tagId = System.currentTimeMillis()+random;
                 Tag newTag = new Tag();
                 newTag.setId(tagId);
                 newTag.setTagName(tag.getTagName());
                 tagMapper.insert(newTag);
+                rabbitTemplate.convertAndSend(Mq.ART_EXCHANGE,Mq.TAG_INSERT_KEY,tagId);
                 articleTag.setTagId(tagId);
             }else{
-                articleTag.setTagId(Long.parseLong(tag.getId()));
+                articleTag.setTagId(tagtag.getId());
             }
             articleTagMapper.insert(articleTag);
         }
@@ -146,6 +156,8 @@ public class ArticleServiceImpl implements ArticleService {
         }else{
             articleMapper.updateById(article);
         }
+        // 发送消息--es修改、插入
+        rabbitTemplate.convertAndSend(Mq.ART_EXCHANGE,Mq.ART_INSERT_KEY,articleId);
 
         Map<String,String> map=new HashMap<>();
         map.put("articleId",article.getId().toString());
@@ -200,6 +212,7 @@ public class ArticleServiceImpl implements ArticleService {
         int update = articleMapper.update(null, updateWrapper);
         if(update==0)
             return Result.fail(-998,"Failed to Ldelete article");
+        rabbitTemplate.convertAndSend(Mq.ART_EXCHANGE,Mq.ART_DELETE_KEY,articleId);
         return Result.success("Successfully Ldelete article");
     }
 
@@ -211,6 +224,7 @@ public class ArticleServiceImpl implements ArticleService {
         int update = articleMapper.update(null, updateWrapper);
         if(update==0)
             return Result.fail(-998,"Failed to recover article");
+        rabbitTemplate.convertAndSend(Mq.ART_EXCHANGE,Mq.ART_INSERT_KEY,articleId);
         return Result.success("Successfully recover article");
     }
     // 彻底删除文章
@@ -226,6 +240,7 @@ public class ArticleServiceImpl implements ArticleService {
         int i = articleMapper.deleteById(articleId);
         if(i==0)
             return Result.fail(-998,"Failed to delete Article");
+        rabbitTemplate.convertAndSend(Mq.ART_EXCHANGE,Mq.ART_DELETE_KEY,articleId);
         return Result.success("Successfully delete Article");
     }
 
@@ -255,7 +270,64 @@ public class ArticleServiceImpl implements ArticleService {
         if(update==0){
             return Result.fail(-998,"Failed to update article");
         }
+        rabbitTemplate.convertAndSend(Mq.ART_EXCHANGE,Mq.ART_INSERT_KEY,backArticleParams.getId());
         return Result.success("Successfully update article");
+    }
+
+    @Override
+    public List<ArticleEso> findAllToEso() {
+        LambdaQueryWrapper<Article> queryWrapper=new LambdaQueryWrapper<>();
+        queryWrapper.ne(Article::getIsDelete,true);
+        List<Article> articles = articleMapper.selectList(queryWrapper);
+//        List<Article> articles = articleMapper.selectList(null);
+        List<ArticleEso> aEs = new ArrayList<>();
+
+        for(Article article:articles){
+            ArticleEso articleEso = new ArticleEso();
+            articleEso.setId(String.valueOf(article.getId()));
+            articleEso.setSummary(article.getSummary());
+            articleEso.setTitle(article.getTitle());
+            articleEso.setCreateDate(new DateTime(article.getCreateDate()).toString("yyyy-MM-dd HH:mm"));
+            UserVo userVo = userService.findUserVoById(article.getAuthorId());
+            articleEso.setUserVo(JSON.toJSONString(userVo));
+            CategoryVo categoryVo=categoryService.findCategoryById(article.getCategoryId());
+            articleEso.setCategoryVo(JSON.toJSONString(categoryVo));
+            List<TagVo> tags = tagsService.findTagsByArticleId(article.getId());
+            articleEso.setTagVo(JSON.toJSONString(tags));
+            ArticleBody articleBody = articleBodyMapper.selectById(article.getBodyId());
+            if(articleBody.getContent()!=null){
+                articleEso.setContent(articleBody.getContent());
+            }
+            aEs.add(articleEso);
+        }
+        return aEs;
+    }
+
+    @Override
+    public ArticleEso findToEso(Long articleId) {
+        LambdaQueryWrapper<Article> queryWrapper=new LambdaQueryWrapper<>();
+        queryWrapper.ne(Article::getIsDelete,true)
+                .eq(Article::getId,articleId);
+        Article article = articleMapper.selectOne(queryWrapper);
+//        List<Article> articles = articleMapper.selectList(null);
+        ArticleEso articleEso = new ArticleEso();
+        if(article!=null){
+            articleEso.setId(String.valueOf(article.getId()));
+            articleEso.setSummary(article.getSummary());
+            articleEso.setTitle(article.getTitle());
+            articleEso.setCreateDate(new DateTime(article.getCreateDate()).toString("yyyy-MM-dd HH:mm"));
+            UserVo userVo = userService.findUserVoById(article.getAuthorId());
+            articleEso.setUserVo(JSON.toJSONString(userVo));
+            CategoryVo categoryVo=categoryService.findCategoryById(article.getCategoryId());
+            articleEso.setCategoryVo(JSON.toJSONString(categoryVo));
+            List<TagVo> tags = tagsService.findTagsByArticleId(article.getId());
+            articleEso.setTagVo(JSON.toJSONString(tags));
+            ArticleBody articleBody = articleBodyMapper.selectById(article.getBodyId());
+            if(articleBody.getContent()!=null){
+                articleEso.setContent(articleBody.getContent());
+            }
+        }
+        return articleEso;
     }
 
     public ArticleVo copy(Article article, boolean isAuthor, boolean isTags){

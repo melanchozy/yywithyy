@@ -11,6 +11,7 @@ public class Yy {
     private String github;
     private String email;
     private String post;
+    private String avatar;
     @TableField(value = "aboutme")
     private String aboutMe;
 }

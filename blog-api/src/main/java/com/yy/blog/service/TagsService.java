@@ -1,5 +1,6 @@
 package com.yy.blog.service;
 
+import com.yy.blog.dao.eso.TagEso;
 import com.yy.blog.dao.pojo.Tag;
 import com.yy.blog.vo.Result;
 import com.yy.blog.vo.TagVo;
@@ -14,4 +15,6 @@ public interface TagsService {
     int updateTagByTagId(Long id);
     Result delTag(Long id);
     Result upTag(TagParams tagParams);
+    List<TagEso> findAllToEso();
+    TagEso findTgaByIdToEso(Long tagId);
 }

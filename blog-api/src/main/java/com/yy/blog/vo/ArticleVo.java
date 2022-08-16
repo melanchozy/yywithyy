@@ -13,9 +13,7 @@ public class ArticleVo {
     private String summary;
 
     private Long weight;
-    /**
-     * 创建时间
-     */
+
     private String createDate;
 
     private UserVo author;

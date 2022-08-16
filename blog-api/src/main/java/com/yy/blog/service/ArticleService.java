@@ -1,10 +1,13 @@
 package com.yy.blog.service;
 
+import com.yy.blog.dao.eso.ArticleEso;
 import com.yy.blog.vo.Result;
 import com.yy.blog.vo.params.ArticleParams;
 import com.yy.blog.vo.params.BackArticleParams;
 import com.yy.blog.vo.params.PageParams;
 import com.yy.blog.vo.params.SaveParams;
+
+import java.util.List;
 
 
 public interface ArticleService {
@@ -41,4 +44,8 @@ public interface ArticleService {
     Result allArticle(PageParams pageParams);
     // 更新文章信息
     Result updateArticle(BackArticleParams backArticleParams);
+
+    //查询转为eso对象
+    List<ArticleEso> findAllToEso();
+    ArticleEso findToEso(Long articleId);
 }

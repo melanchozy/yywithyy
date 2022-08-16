@@ -2,20 +2,24 @@ package com.yy.blog.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.yy.blog.dao.eso.TagEso;
 import com.yy.blog.dao.mapper.ArticleTagMapper;
 import com.yy.blog.dao.mapper.TagMapper;
 import com.yy.blog.dao.pojo.Article;
 import com.yy.blog.dao.pojo.ArticleTag;
 import com.yy.blog.dao.pojo.Tag;
 import com.yy.blog.service.TagsService;
+import com.yy.blog.utils.Mq;
 import com.yy.blog.vo.Result;
 import com.yy.blog.vo.TagVo;
 import com.yy.blog.vo.params.TagParams;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.apache.commons.lang3.StringUtils.isBlank;
@@ -26,6 +30,9 @@ public class TagsServiceImpl implements TagsService {
     private TagMapper tagMapper;
     @Autowired
     private ArticleTagMapper articleTagMapper;
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
 
     public TagVo copy(Tag tag){
         TagVo tagVo = new TagVo();
@@ -65,6 +72,7 @@ public class TagsServiceImpl implements TagsService {
         tag.setId(tagId);
         int res=tagMapper.insert(tag);
         if(res!=0){
+            rabbitTemplate.convertAndSend(Mq.ART_EXCHANGE,Mq.TAG_INSERT_KEY,tagId);
             return Result.success(tag);
         }else{
             return Result.fail(-999,"fail to new tag");
@@ -87,6 +95,7 @@ public class TagsServiceImpl implements TagsService {
         if(i1==0){
             return Result.fail(-998,"failed to delete tag");
         }
+        rabbitTemplate.convertAndSend(Mq.ART_EXCHANGE,Mq.TAG_DELETE_KEY,id);
         return Result.success("Successfully delete tag");
     }
 
@@ -99,6 +108,35 @@ public class TagsServiceImpl implements TagsService {
         if(i==0){
             return Result.fail(-998,"failed to update tag");
         }
+        rabbitTemplate.convertAndSend(Mq.ART_EXCHANGE,Mq.TAG_DELETE_KEY,tag.getId());
         return Result.success("Successfully update tag");
+    }
+
+    @Override
+    public List<TagEso> findAllToEso() {
+        List<Tag> tags = tagMapper.selectList(null);
+        List<TagEso> tagEsos=new ArrayList<>();
+        for(Tag tag:tags){
+            TagEso tagEso=new TagEso();
+            tagEso.setId(tag.getId().toString());
+            tagEso.setName(tag.getTagName());
+            tagEso.setSuggestion(Arrays.asList(tag.getTagName()));
+            tagEsos.add(tagEso);
+//            System.out.println(tagEso.getSuggestion());
+        }
+        return tagEsos;
+    }
+
+    @Override
+    public TagEso findTgaByIdToEso(Long tagId) {
+        Tag tag = tagMapper.selectById(tagId);
+        if(tag==null)
+            return null;
+        TagEso tagEso=new TagEso();
+        tagEso.setId(tag.getId().toString());
+        tagEso.setName(tag.getTagName());
+        tagEso.setSuggestion(Arrays.asList(tag.getTagName()));
+//            System.out.println(tagEso.getSuggestion());
+        return tagEso;
     }
 }
