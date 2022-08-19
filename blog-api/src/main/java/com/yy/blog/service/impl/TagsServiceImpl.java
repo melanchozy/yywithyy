@@ -65,6 +65,12 @@ public class TagsServiceImpl implements TagsService {
         if(isBlank(tagName)){
             return Result.fail(-999,"input tagname");
         }
+        LambdaQueryWrapper<Tag> queryWrapper=new LambdaQueryWrapper<>();
+        queryWrapper.eq(Tag::getTagName,tagName);
+        Tag tag1 = tagMapper.selectOne(queryWrapper);
+        if(tag1!=null){
+            return Result.fail(-998,"tag already exist");
+        }
         long random = (long) (Math.random() * 971006);
         long tagId = System.currentTimeMillis()+random;
         Tag tag=new Tag();

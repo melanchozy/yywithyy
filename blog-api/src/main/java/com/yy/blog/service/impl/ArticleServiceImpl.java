@@ -59,18 +59,22 @@ public class ArticleServiceImpl implements ArticleService {
 
     @Override
     public Result listArticle(PageParams pageParams) {
+        if(redisTemplate.opsForValue().get("indexArticle")!=null){
+            return Result.success(redisTemplate.opsForValue().get("indexArticle"));
+        }
         Page<Article> page = new Page<>(pageParams.getPage(),pageParams.getPageSize());
         LambdaQueryWrapper<Article> queryWrapper=new LambdaQueryWrapper<>();
         // 默认按创建时间倒序排序，逻辑删除了排除
         queryWrapper.ne(Article::getIsDelete,1)
-                .orderByDesc(Article::getCreateDate)
-                .orderByDesc(Article::getWeight);
+                .orderByDesc(Article::getWeight)
+                .orderByDesc(Article::getCreateDate);
         Page<Article> articlePage = articleMapper.selectPage(page, queryWrapper);
         List<Article> records=articlePage.getRecords();
         if(records.isEmpty())
             return Result.fail(-998,"article not found");
         // 转成VO
         List<ArticleVo> articleVoList=copyList(records,true,true);
+        redisTemplate.opsForValue().set("indexArticle",articleVoList);
         return Result.success(articleVoList);
     }
 
@@ -133,6 +137,12 @@ public class ArticleServiceImpl implements ArticleService {
             }else{
                 articleTag.setTagId(tagtag.getId());
             }
+            // 编辑时，删除之前的标签，采用新标签
+            if(!isPublish){
+                LambdaQueryWrapper<ArticleTag> queryWrapper2=new LambdaQueryWrapper<>();
+                queryWrapper2.eq(ArticleTag::getArticleId,articleTag.getArticleId());
+                articleTagMapper.delete(queryWrapper2);
+            }
             articleTagMapper.insert(articleTag);
         }
 
@@ -163,6 +173,9 @@ public class ArticleServiceImpl implements ArticleService {
         map.put("articleId",article.getId().toString());
         if(redisTemplate.opsForValue().get(String.valueOf(userId))!=null){
             redisTemplate.delete(String.valueOf(userId));
+        }
+        if(redisTemplate.opsForValue().get("indexArticle")!=null){
+            redisTemplate.delete("indexArticle");
         }
         return Result.success(map);
     }
